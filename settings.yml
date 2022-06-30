@@ -1,0 +1,45 @@
+VAGRANTFILE_API_VERSION: "2"
+K8S_VERSION: "1.23.7-00"
+SYNCED_FOLDER: "/home/vagrant/shared"
+
+###################
+# VMs (vagrant) settings
+###################
+
+default: &DEFAULT
+    box: "boxomatic/debian-11"
+    cpu: 2
+    memory: 2048
+    vram: 128
+
+machines:
+    node-1:
+        <<: *DEFAULT
+        hostname: "node-1.k8s"
+        node: "master"
+        network:
+            # Private/Host-only network
+            private:
+                address: 192.168.81.211
+                netmask: 192.168.81.0/24
+    node-2:
+        <<: *DEFAULT
+        hostname: "node-2.k8s"
+        node: "worker"
+        network:
+            # Private/Host-only network
+            private:
+                address: 192.168.81.212
+                netmask: 192.168.81.0/24
+        # forwarded_port:
+        #     - guest: 80
+        #       host: 8080
+    node-3:
+        <<: *DEFAULT
+        hostname: "node-3.k8s"
+        node: "worker"
+        network:
+            # Private/Host-only network
+            private:
+                address: 192.168.81.213
+                netmask: 192.168.81.0/24
