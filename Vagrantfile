@@ -21,11 +21,6 @@ SHARED_DIR = settings['SYNCED_FOLDER']
 SCRIPTS = File.expand_path('scripts')
 
 machines = settings['machines']
-ips = {}
-
-machines.each do |machine_name, opts|
-  ips[opts['network']['private']['address']] = "#{opts['network']['private']['address']} #{opts['hostname']} #{machine_name}"
-end
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
@@ -33,11 +28,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     machine_hostname = machine['hostname']
     config.vm.synced_folder ".", "/vagrant", disabled: true
     config.ssh.insert_key = false
+    config.vm.allow_hosts_modification = false
 
     config.vm.define machine_name do |m|
       m.vm.box = machine['box']
       m.vm.box_check_update = false
-
       m.vm.hostname = machine_hostname
 
       #################
@@ -62,27 +57,20 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         machine["forwarded_port"].each do |port|
           m.vm.network "forwarded_port", guest: port["guest"], host: port["host"], auto_correct: true
         end
-
       end
 
       #################
       # Networking :: /etc/hosts
       #################
-      ips.each do |ip, line|
-        m.vm.provision "===> Appendig host #{ip} /etc/hosts", type: "shell" do |shell| 
-          shell.inline = <<-SHELL
-
-          if grep -q #{ip} /etc/hosts; then
-              echo "Exists"
-          else
-              echo "Adding #{line} to /etc/hosts"
-              echo "#{line}" >> /etc/hosts
-          fi
-        
-          SHELL
-        end
+      machines.each do |machine_name, opts|
+        m.vm.provision "shell",
+          env: {"IP" => "#{opts['network']['private']['address']}", "HOSTNAME" => "#{opts['hostname']}", "HOST_ALIAS" => "#{machine_name}"},
+          name: "===> Appendig #{machine_name} to /etc/hosts", path: "#{SCRIPTS}/hosts.sh"
       end
 
+      #################
+      # Cluster initialization
+      #################
       if machine["node"] == "master"
         m.vm.provision "shell",
           env: {"MASTER_IP" => "#{machine['network']['private']['address']}", "SHARED_DIR" => "#{SHARED_DIR}"},
@@ -93,6 +81,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           name: "Installing Worker Node #{machine_hostname}", path: "#{SCRIPTS}/nodes.sh"
       end
 
+      #################
+      # Provider :: Configuration for virtualbox provider
+      #################
       m.vm.provider "virtualbox" do |vb, override|
         vb.name = machine_name
         vb.memory = machine['memory']
