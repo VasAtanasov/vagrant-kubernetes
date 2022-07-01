@@ -8,8 +8,8 @@ set -euxo pipefail
 FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
 echo $HOME
 if [[ -f "$FIRST_RUN_MARKER" ]]; then
-    echo "Machine already bootstraped"
-    exit 0
+  echo "Machine already bootstraped"
+  exit 0
 fi
 
 echo 'Create the .conf file to load the modules at boot ...'
@@ -34,10 +34,13 @@ update-alternatives --query iptables
 
 echo '* Turn off the swap ...'
 swapoff -a
-sed -i '/swap/ s/^/#/' /etc/fstab 
+sed -i '/swap/ s/^/#/' /etc/fstab
 
 # keeps the swaf off during reboot
-(crontab -l 2>/dev/null; echo "@reboot /sbin/swapoff -a") | crontab - || true
+(
+  crontab -l 2>/dev/null
+  echo "@reboot /sbin/swapoff -a"
+) | crontab - || true
 sudo apt-get update -y
 
 free -h
@@ -51,7 +54,7 @@ echo '* Download and install the Docker repository key ...'
 curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
 echo '* Add the Docker repository ...'
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/nulL
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/nulL
 
 echo '* Install the required container runtime packages ...'
 apt-get update
@@ -60,7 +63,7 @@ apt-get install -y docker-ce docker-ce-cli containerd.io
 echo '* Adjust container runtime configuration ...'
 mkdir -p /etc/docker
 
-cat <<EOF >> /etc/docker/daemon.json
+cat <<EOF >>/etc/docker/daemon.json
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
   "log-driver": "json-file",
@@ -89,7 +92,7 @@ apt-get update
 
 echo "* Install the selected ($KUBERNETES_VERSION) version ..."
 apt-get update
-if [ $KUBERNETES_VERSION != 'latest' ]; then 
+if [ $KUBERNETES_VERSION != 'latest' ]; then
   apt-get install -y kubelet="$KUBERNETES_VERSION" kubectl="$KUBERNETES_VERSION" kubeadm="$KUBERNETES_VERSION"
 else
   apt-get install -y kubelet kubeadm kubectl
@@ -99,7 +102,7 @@ echo '* Exclude the Kubernetes packages from being updated ...'
 apt-mark hold kubelet kubeadm kubectl
 
 local_ip="$(ip --json a s | jq -r '.[] | if .ifname == "eth1" then .addr_info[] | if .family == "inet" then .local else empty end else empty end')"
-cat > /etc/default/kubelet << EOF
+cat >/etc/default/kubelet <<EOF
 KUBELET_EXTRA_ARGS=--node-ip=$local_ip
 EOF
 

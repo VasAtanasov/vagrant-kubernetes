@@ -8,8 +8,8 @@ set -euxo pipefail
 NODENAME=$(hostname -s)
 FIRST_RUN_CONTROL_PLANE=$HOME/first-run-control-plane.txt
 if [[ -f "$FIRST_RUN_CONTROL_PLANE" ]]; then
-    echo "Control Plane already bootstraped"
-    exit 0
+  echo "Control Plane already bootstraped"
+  exit 0
 fi
 
 POD_CIDR="192.168.0.0/16"
@@ -41,14 +41,14 @@ cp -i /etc/kubernetes/admin.conf $config_path/config
 touch $config_path/join.sh
 chmod +x $config_path/join.sh
 
-sudo -i -u vagrant bash << EOF
+sudo -i -u vagrant bash <<EOF
 whoami
 mkdir -p /home/vagrant/.kube
 sudo cp -i $config_path/config /home/vagrant/.kube/
 sudo chown vagrant:vagrant /home/vagrant/.kube/config
 EOF
 
-kubeadm token create --print-join-command > $config_path/join.sh
+kubeadm token create --print-join-command >$config_path/join.sh
 
 # Install Calico Network Plugin
 
