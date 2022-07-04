@@ -2,13 +2,22 @@
 #
 
 echo 'Common setup for all servers (Control Plane and Nodes)'
+export DEBIAN_FRONTEND="noninteractive"
+
+disable_sudo_password() {
+  local username="${1}"
+  cp /etc/sudoers /etc/sudoers.bak
+  bash -c "echo '${username} ALL=(ALL) NOPASSWD: ALL' | (EDITOR='tee -a' visudo)"
+}
+
+disable_sudo_password 'vagrant'
 
 set -euxo pipefail
 
 FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
-echo $HOME
+
 if [[ -f "$FIRST_RUN_MARKER" ]]; then
-  echo "Machine already bootstraped"
+  echo "Machine already bootstrapped"
   exit 0
 fi
 
@@ -36,7 +45,7 @@ echo '* Turn off the swap ...'
 swapoff -a
 sed -i '/swap/ s/^/#/' /etc/fstab
 
-# keeps the swaf off during reboot
+# keeps the swap off during reboot
 (
   crontab -l 2>/dev/null
   echo "@reboot /sbin/swapoff -a"
@@ -92,7 +101,7 @@ apt-get update
 
 echo "* Install the selected ($KUBERNETES_VERSION) version ..."
 apt-get update
-if [ $KUBERNETES_VERSION != 'latest' ]; then
+if [ "$KUBERNETES_VERSION" != 'latest' ]; then
   apt-get install -y kubelet="$KUBERNETES_VERSION" kubectl="$KUBERNETES_VERSION" kubeadm="$KUBERNETES_VERSION"
 else
   apt-get install -y kubelet kubeadm kubectl
@@ -106,4 +115,4 @@ cat >/etc/default/kubelet <<EOF
 KUBELET_EXTRA_ARGS=--node-ip=$local_ip
 EOF
 
-touch $FIRST_RUN_MARKER
+touch "$FIRST_RUN_MARKER"

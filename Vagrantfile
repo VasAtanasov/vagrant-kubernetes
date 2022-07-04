@@ -25,10 +25,10 @@ machines = settings['machines']
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   machines.each do |machine_name, machine|
-    machine_hostname = machine['hostname']
+    machine_hostname = "#{machine['hostname']}"
     config.vm.synced_folder ".", "/vagrant", disabled: true
     config.ssh.insert_key = false
-    config.vm.allow_hosts_modification = false
+#     config.vm.allow_hosts_modification = false
 
     config.vm.define machine_name do |m|
       m.vm.box = machine['box']
@@ -74,7 +74,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       if machine["node"] == "master"
         m.vm.provision "shell",
           env: {"MASTER_IP" => "#{machine['network']['private']['address']}", "SHARED_DIR" => "#{SHARED_DIR}"},
-          name: "Installing Controll Plane Node", path: "#{SCRIPTS}/master.sh"
+          name: "Installing Control Plane Node", path: "#{SCRIPTS}/master.sh"
       else
         m.vm.provision "shell",
           env: {"SHARED_DIR" => "#{SHARED_DIR}"},
@@ -101,8 +101,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   end
 
-  config.vm.provision "shell", 
+  config.vm.provision "shell",
     env: {"KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "SHARED_DIR" => "#{SHARED_DIR}"},
-    name: "Boostraping container runtime and kubernetes", path: "#{SCRIPTS}/boostrap.sh"
+    name: "Bootstrapping container runtime and kubernetes", path: "#{SCRIPTS}/boostrap.sh"
 
 end

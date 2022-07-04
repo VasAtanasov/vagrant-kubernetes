@@ -15,7 +15,7 @@ else
 
   if grep -q "$IP" /etc/hosts; then
     echo "$HOSTNAME was added succesfully:"
-    echo "$(grep $HOSTNAME /etc/hosts)"
+    echo "$(grep "$HOSTNAME" /etc/hosts)"
   else
     echo "Failed to add $HOSTNAME"
   fi
