@@ -5,11 +5,15 @@
 set -euxo pipefail
 
 FIRST_RUN_WORKER=$HOME/first-run-worker.txt
-echo $HOME
+
 if [[ -f "$FIRST_RUN_WORKER" ]]; then
-  echo "Worker node alredy bootstraped"
-  exit 0
+    echo "Worker node alredy bootstraped"
+    exit 0
 fi
+
+cat <<EOF >>/etc/profile.d/control_plane_docker_daemon.sh
+export DOCKER_HOST=tcp://${CONTROL_PLANE_IP}
+EOF
 
 config_path="$SHARED_DIR/configs"
 

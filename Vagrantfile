@@ -1,108 +1,94 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-require 'yaml'
+KUBERNETES_VERSION = "1.23.7-00"
 
-SETTINGS_FILE = File.expand_path('settings.yml')
-if File.exist? SETTINGS_FILE then
-  settings = YAML.load_file SETTINGS_FILE
-else
-  abort "settings.yml was not found"
-end
+VAGRANT_BOX = "boxomatic/debian-11"
+CPUS_MASTER_NODE = 2
+CPUS_WORKER_NODE = 2
+MEMORY_MASTER_NODE = 2048
+MEMORY_WORKER_NODE = 2048
+WORKER_NODES_COUNT = 2
+CONTROL_PLANE_COUNT = 1
+TOTAL_NODES_COUNT = CONTROL_PLANE_COUNT + WORKER_NODES_COUNT
 
-VAGRANT_ASSETS = File.expand_path('assets')
-if ! File.exists? VAGRANT_ASSETS then
-  VAGRANT_ASSETS = File.expand_path(Dir.pwd)
-end
+IP_NW = "192.168.81."
+IP_START = 210
+POD_NETWORK = "192.168.0.0/16"
 
-VAGRANTFILE_API_VERSION = settings['VAGRANTFILE_API_VERSION'] || "2"
-KUBERNETES_VERSION = settings['K8S_VERSION'] || "1.23.7-00"
-SHARED_DIR = settings['SYNCED_FOLDER']
-SCRIPTS = File.expand_path('scripts')
-
-machines = settings['machines']
+VAGRANTFILE_API_VERSION = "2"
+SHARED_DIR = "/home/vagrant/shared"
+SCRIPTS = File.expand_path("scripts")
+VAGRANT_ASSETS = File.expand_path("assets")
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.box = VAGRANT_BOX
+  config.vm.box_check_update = false
 
-  machines.each do |machine_name, machine|
-    machine_hostname = "#{machine['hostname']}"
-    config.vm.synced_folder ".", "/vagrant", disabled: true
-    config.ssh.insert_key = false
-#     config.vm.allow_hosts_modification = false
+  config.ssh.insert_key = false
 
-    config.vm.define machine_name do |m|
-      m.vm.box = machine['box']
-      m.vm.box_check_update = false
-      m.vm.hostname = machine_hostname
+  config.vm.provision "shell",
+    env: { "KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "SHARED_DIR" => "#{SHARED_DIR}" },
+    name: "Bootstrapping container runtime and kubernetes",
+    path: "#{SCRIPTS}/boostrap.sh"
 
-      #################
-      # Networking :: Private
-      #################b 
-      if machine['network'].include? 'private'
-        m.vm.network "private_network", ip: "#{machine['network']['private']['address']}"
-      end
+  (1..TOTAL_NODES_COUNT).each do |i|
+    config.vm.provision "shell",
+      env: { "IP" => "#{IP_NW}#{IP_START + i}", "HOSTNAME" => "node-#{i}.k8s", "HOST_ALIAS" => "node-#{i}" },
+      name: "===> Appendig node-#{i}.k8s to /etc/hosts",
+      path: "#{SCRIPTS}/hosts.sh"
+  end
 
-      #################
-      # Networking :: Public
-      #################
-      if machine['network'].include? 'public'
-        public_ip_address = "#{machine['network']['public']['address']}"
-        m.vm.network "public_network", ip: public_ip_address, hostname: true, bridge: "ens33"
-      end
+  CONTROL_PLANE_IP = "#{IP_NW}#{IP_START + 1}"
 
-      #################
-      # Networking :: Port forwarding
-      #################
-      if machine.include? 'forwarded_port'
-        machine["forwarded_port"].each do |port|
-          m.vm.network "forwarded_port", guest: port["guest"], host: port["host"], auto_correct: true
-        end
-      end
+  ENV["CONTROL_PLANE_IP"] = "#{CONTROL_PLANE_IP}"
+  
+  # Kubernetes Control Plane Server
+  config.vm.define "node-1" do |node|
+    node.vm.hostname = "node-1.k8s"
+    node.vm.network "private_network", ip: "#{CONTROL_PLANE_IP}"
 
-      #################
-      # Networking :: /etc/hosts
-      #################
-      machines.each do |machine_name, opts|
-        m.vm.provision "shell",
-          env: {"IP" => "#{opts['network']['private']['address']}", "HOSTNAME" => "#{opts['hostname']}", "HOST_ALIAS" => "#{machine_name}"},
-          name: "===> Appendig #{machine_name} to /etc/hosts", path: "#{SCRIPTS}/hosts.sh"
-      end
+    node.vm.provider :virtualbox do |vb, override|
+      vb.name = "node-1"
+      vb.memory = MEMORY_MASTER_NODE
+      vb.cpus = CPUS_MASTER_NODE
 
-      #################
-      # Cluster initialization
-      #################
-      if machine["node"] == "master"
-        m.vm.provision "shell",
-          env: {"MASTER_IP" => "#{machine['network']['private']['address']}", "SHARED_DIR" => "#{SHARED_DIR}"},
-          name: "Installing Control Plane Node", path: "#{SCRIPTS}/master.sh"
-      else
-        m.vm.provision "shell",
-          env: {"SHARED_DIR" => "#{SHARED_DIR}"},
-          name: "Installing Worker Node #{machine_hostname}", path: "#{SCRIPTS}/nodes.sh"
-      end
+      vb.customize ["modifyvm", :id, "--vram", 128]
+      vb.customize ["modifyvm", :id, "--groups", "/k8s"]
 
-      #################
-      # Provider :: Configuration for virtualbox provider
-      #################
-      m.vm.provider "virtualbox" do |vb, override|
-        vb.name = machine_name
-        vb.memory = machine['memory']
-        vb.cpus = machine['cpu']
-        
-        vb.customize ["modifyvm", :id, "--vram",               machine['vram']]
-        vb.customize ["modifyvm", :id, "--groups",             "/k8s"]
+      vb.check_guest_additions = false
+      override.vm.synced_folder "#{VAGRANT_ASSETS}", "#{SHARED_DIR}"
+    end
+
+    node.vm.provision "shell",
+                      env: { "MASTER_IP" => "#{IP_NW}#{IP_START + 1}", "POD_CIDR" => "#{POD_NETWORK}", "SHARED_DIR" => "#{SHARED_DIR}" },
+                      name: "Installing Control Plane Node",
+                      path: "#{SCRIPTS}/master.sh"
+  end
+
+  # Kubernetes Worker Nodes
+  (2..(WORKER_NODES_COUNT + CONTROL_PLANE_COUNT)).each do |i|
+    config.vm.define "node-#{i}" do |node|
+      node.vm.hostname = "node-#{i}.k8s"
+      node.vm.network "private_network", ip: "#{IP_NW}#{IP_START + i}"
+
+      node.vm.provider :virtualbox do |vb, override|
+        vb.name = "node-#{i}"
+        vb.memory = MEMORY_WORKER_NODE
+        vb.cpus = CPUS_WORKER_NODE
+
+        vb.customize ["modifyvm", :id, "--vram", 128]
+        vb.customize ["modifyvm", :id, "--groups", "/k8s"]
 
         vb.check_guest_additions = false
         override.vm.synced_folder "#{VAGRANT_ASSETS}", "#{SHARED_DIR}"
       end
 
-
+      node.vm.provision "shell",
+                        env: { "CONTROL_PLANE_IP" => "#{CONTROL_PLANE_IP}", "SHARED_DIR" => "#{SHARED_DIR}" },
+                        name: "Installing Worker Node node-#{i}",
+                        path: "#{SCRIPTS}/nodes.sh"
     end
-
   end
-
-  config.vm.provision "shell",
-    env: {"KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "SHARED_DIR" => "#{SHARED_DIR}"},
-    name: "Bootstrapping container runtime and kubernetes", path: "#{SCRIPTS}/boostrap.sh"
-
 end

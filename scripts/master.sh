@@ -8,11 +8,16 @@ set -euxo pipefail
 NODENAME=$(hostname -s)
 FIRST_RUN_CONTROL_PLANE=$HOME/first-run-control-plane.txt
 if [[ -f "$FIRST_RUN_CONTROL_PLANE" ]]; then
-  echo "Control Plane already bootstraped"
-  exit 0
+    echo "Control Plane already bootstraped"
+    exit 0
 fi
 
-POD_CIDR="192.168.0.0/16"
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get -y install helm
+
 
 sudo kubeadm config images pull
 
@@ -32,9 +37,9 @@ sudo chown "$(id -u)":"$(id -g)" "$HOME"/.kube/config
 config_path="$SHARED_DIR/configs"
 
 if [ -d $config_path ]; then
-  rm -f $config_path/*
+    rm -f $config_path/*
 else
-  mkdir -p $config_path
+    mkdir -p $config_path
 fi
 
 cp -i /etc/kubernetes/admin.conf $config_path/config
@@ -52,9 +57,13 @@ kubeadm token create --print-join-command >$config_path/join.sh
 
 # Install Calico Network Plugin
 
-curl https://docs.projectcalico.org/manifests/calico.yaml -O
+echo "* Install Pod Network plugin (Calico) ..."
+kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
+wget -q https://docs.projectcalico.org/manifests/custom-resources.yaml -O /tmp/custom-resources.yaml
+# sed -i 's/192.168.0.0/10.244.0.0/g' /tmp/custom-resources.yaml
+kubectl create -f /tmp/custom-resources.yaml
 
-kubectl apply -f calico.yaml
+# kubectl apply -f calico.yaml
 
 # Install Metrics Server
 

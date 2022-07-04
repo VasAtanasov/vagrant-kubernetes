@@ -1,13 +1,13 @@
 #!/bin/bash
-#
 
 echo 'Common setup for all servers (Control Plane and Nodes)'
+
 export DEBIAN_FRONTEND="noninteractive"
 
 disable_sudo_password() {
-  local username="${1}"
-  cp /etc/sudoers /etc/sudoers.bak
-  bash -c "echo '${username} ALL=(ALL) NOPASSWD: ALL' | (EDITOR='tee -a' visudo)"
+    local username="${1}"
+    cp /etc/sudoers /etc/sudoers.bak
+    bash -c "echo '${username} ALL=(ALL) NOPASSWD: ALL' | (EDITOR='tee -a' visudo)"
 }
 
 disable_sudo_password 'vagrant'
@@ -17,8 +17,8 @@ set -euxo pipefail
 FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
 
 if [[ -f "$FIRST_RUN_MARKER" ]]; then
-  echo "Machine already bootstrapped"
-  exit 0
+    echo "Machine already bootstrapped"
+    exit 0
 fi
 
 echo 'Create the .conf file to load the modules at boot ...'
@@ -47,8 +47,8 @@ sed -i '/swap/ s/^/#/' /etc/fstab
 
 # keeps the swap off during reboot
 (
-  crontab -l 2>/dev/null
-  echo "@reboot /sbin/swapoff -a"
+    crontab -l 2>/dev/null
+    echo "@reboot /sbin/swapoff -a"
 ) | crontab - || true
 sudo apt-get update -y
 
@@ -83,6 +83,14 @@ cat <<EOF >>/etc/docker/daemon.json
 }
 EOF
 
+mkdir -p /etc/systemd/system/docker.service.d
+touch /etc/systemd/system/docker.service.d/options.conf
+cat <<EOF >>/etc/systemd/system/docker.service.d/options.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd -H unix:// -H tcp://0.0.0.0:2375
+EOF
+
 systemctl enable docker
 systemctl daemon-reload
 systemctl restart docker
@@ -102,9 +110,9 @@ apt-get update
 echo "* Install the selected ($KUBERNETES_VERSION) version ..."
 apt-get update
 if [ "$KUBERNETES_VERSION" != 'latest' ]; then
-  apt-get install -y kubelet="$KUBERNETES_VERSION" kubectl="$KUBERNETES_VERSION" kubeadm="$KUBERNETES_VERSION"
+    apt-get install -y kubelet="$KUBERNETES_VERSION" kubectl="$KUBERNETES_VERSION" kubeadm="$KUBERNETES_VERSION"
 else
-  apt-get install -y kubelet kubeadm kubectl
+    apt-get install -y kubelet kubeadm kubectl
 fi
 
 echo '* Exclude the Kubernetes packages from being updated ...'
