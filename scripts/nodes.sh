@@ -11,10 +11,6 @@ if [[ -f "$FIRST_RUN_WORKER" ]]; then
     exit 0
 fi
 
-cat <<EOF >>/etc/profile.d/control_plane_docker_daemon.sh
-export DOCKER_HOST=tcp://${CONTROL_PLANE_IP}
-EOF
-
 config_path="$SHARED_DIR/configs"
 
 /bin/bash $config_path/join.sh -v

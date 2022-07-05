@@ -1,14 +1,14 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-KUBERNETES_VERSION = "1.23.7-00"
+KUBERNETES_VERSION = "1.23.8-00"
 
 VAGRANT_BOX = "boxomatic/debian-11"
 CPUS_MASTER_NODE = 2
 CPUS_WORKER_NODE = 2
-MEMORY_MASTER_NODE = 2048
-MEMORY_WORKER_NODE = 2048
-WORKER_NODES_COUNT = 2
+MEMORY_MASTER_NODE = 6000
+MEMORY_WORKER_NODE = 6000
+WORKER_NODES_COUNT = 1
 CONTROL_PLANE_COUNT = 1
 TOTAL_NODES_COUNT = CONTROL_PLANE_COUNT + WORKER_NODES_COUNT
 
@@ -28,8 +28,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.ssh.insert_key = false
 
+  CONTROL_PLANE_IP = "#{IP_NW}#{IP_START + 1}"
+
   config.vm.provision "shell",
-    env: { "KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "SHARED_DIR" => "#{SHARED_DIR}" },
+    env: { "KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "CONTROL_PLANE_IP" => "#{CONTROL_PLANE_IP}", "SHARED_DIR" => "#{SHARED_DIR}" },
     name: "Bootstrapping container runtime and kubernetes",
     path: "#{SCRIPTS}/boostrap.sh"
 
@@ -39,10 +41,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       name: "===> Appendig node-#{i}.k8s to /etc/hosts",
       path: "#{SCRIPTS}/hosts.sh"
   end
-
-  CONTROL_PLANE_IP = "#{IP_NW}#{IP_START + 1}"
-
-  ENV["CONTROL_PLANE_IP"] = "#{CONTROL_PLANE_IP}"
   
   # Kubernetes Control Plane Server
   config.vm.define "node-1" do |node|

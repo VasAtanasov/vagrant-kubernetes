@@ -1,5 +1,14 @@
 #!/bin/bash
 
+set -euxo pipefail
+
+FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
+
+if [[ -f "$FIRST_RUN_MARKER" ]]; then
+    echo "Machine already bootstrapped"
+    exit 0
+fi
+
 echo 'Common setup for all servers (Control Plane and Nodes)'
 
 export DEBIAN_FRONTEND="noninteractive"
@@ -11,15 +20,6 @@ disable_sudo_password() {
 }
 
 disable_sudo_password 'vagrant'
-
-set -euxo pipefail
-
-FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
-
-if [[ -f "$FIRST_RUN_MARKER" ]]; then
-    echo "Machine already bootstrapped"
-    exit 0
-fi
 
 echo 'Create the .conf file to load the modules at boot ...'
 modprobe br_netfilter
@@ -70,8 +70,8 @@ apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io
 
 echo '* Adjust container runtime configuration ...'
-mkdir -p /etc/docker
 
+mkdir -p /etc/docker
 cat <<EOF >>/etc/docker/daemon.json
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -84,11 +84,14 @@ cat <<EOF >>/etc/docker/daemon.json
 EOF
 
 mkdir -p /etc/systemd/system/docker.service.d
-touch /etc/systemd/system/docker.service.d/options.conf
 cat <<EOF >>/etc/systemd/system/docker.service.d/options.conf
 [Service]
 ExecStart=
 ExecStart=/usr/bin/dockerd -H unix:// -H tcp://0.0.0.0:2375
+EOF
+
+cat <<EOF >>/etc/profile.d/control_plane_docker_daemon.sh
+export DOCKER_HOST=tcp://${CONTROL_PLANE_IP}
 EOF
 
 systemctl enable docker
