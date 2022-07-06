@@ -22,7 +22,7 @@ sudo kubeadm config images pull
 
 echo "Preflight Check Passed: Downloaded All Required Images"
 
-sudo kubeadm init --apiserver-advertise-address=$MASTER_IP --apiserver-cert-extra-sans=$MASTER_IP --pod-network-cidr=$POD_CIDR --node-name "$NODENAME" --ignore-preflight-errors Swap
+sudo kubeadm init --apiserver-advertise-address=$CONTROL_PLANE_IP --apiserver-cert-extra-sans=$CONTROL_PLANE_IP --pod-network-cidr=$POD_CIDR --node-name "$NODENAME" --ignore-preflight-errors Swap
 
 echo "* Copy configuration for $HOME ..."
 mkdir -p "$HOME"/.kube

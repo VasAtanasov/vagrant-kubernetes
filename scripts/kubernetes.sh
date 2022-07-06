@@ -5,7 +5,7 @@ set -euxo pipefail
 FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
 
 if [[ -f "$FIRST_RUN_MARKER" ]]; then
-    echo "Machine already bootstrapped"
+    echo "Kubernetes already bootstrapped"
     exit 0
 fi
 
@@ -13,13 +13,6 @@ echo 'Common setup for all servers (Control Plane and Nodes)'
 
 export DEBIAN_FRONTEND="noninteractive"
 
-disable_sudo_password() {
-    local username="${1}"
-    cp /etc/sudoers /etc/sudoers.bak
-    bash -c "echo '${username} ALL=(ALL) NOPASSWD: ALL' | (EDITOR='tee -a' visudo)"
-}
-
-disable_sudo_password 'vagrant'
 
 echo 'Create the .conf file to load the modules at boot ...'
 modprobe br_netfilter
@@ -36,8 +29,8 @@ EOF
 sysctl --system
 
 echo '* Install iptables and switch it iptables to legacy version ...'
-apt-get update
-apt-get install -y iptables
+apt-get update -qq >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables jq >/dev/null
 update-alternatives --set iptables /usr/sbin/iptables-legacy
 update-alternatives --query iptables
 
@@ -50,24 +43,9 @@ sed -i '/swap/ s/^/#/' /etc/fstab
     crontab -l 2>/dev/null
     echo "@reboot /sbin/swapoff -a"
 ) | crontab - || true
-sudo apt-get update -y
 
 free -h
 cat /etc/fstab
-
-echo '* Install other required packages ...'
-apt-get update
-apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq
-
-echo '* Download and install the Docker repository key ...'
-curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-echo '* Add the Docker repository ...'
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/nulL
-
-echo '* Install the required container runtime packages ...'
-apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io
 
 echo '* Adjust container runtime configuration ...'
 
@@ -98,24 +76,18 @@ systemctl enable docker
 systemctl daemon-reload
 systemctl restart docker
 
-echo "Docker runtime installed susccessfully"
-
-echo '* Add vagrant user to docker group ...'
-usermod -aG docker vagrant
-
 echo '* Download and install the Kubernetes repository key ...'
 curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
 
 echo '* Add the Kubernetes repository ...'
 echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-apt-get update
+apt-get update -qq >/dev/null
 
 echo "* Install the selected ($KUBERNETES_VERSION) version ..."
-apt-get update
 if [ "$KUBERNETES_VERSION" != 'latest' ]; then
-    apt-get install -y kubelet="$KUBERNETES_VERSION" kubectl="$KUBERNETES_VERSION" kubeadm="$KUBERNETES_VERSION"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet="$KUBERNETES_VERSION" kubectl="$KUBERNETES_VERSION" kubeadm="$KUBERNETES_VERSION" >/dev/null
 else
-    apt-get install -y kubelet kubeadm kubectl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet kubeadm kubectl >/dev/null
 fi
 
 echo '* Exclude the Kubernetes packages from being updated ...'
