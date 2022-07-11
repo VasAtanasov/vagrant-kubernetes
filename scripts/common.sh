@@ -9,3 +9,5 @@ disable_sudo_password() {
 }
 
 disable_sudo_password 'vagrant'
+
+echo -n > /home/vagrant/.hushlogin

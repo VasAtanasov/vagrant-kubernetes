@@ -11,56 +11,61 @@ fi
 echo 'Setup for Control Plane (Master) servers'
 
 NODENAME=$(hostname -s)
+KUBERNETES_VERSION=$(cut -d - -f 1 /tmp/k8s-version)
 
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-sudo apt-get install apt-transport-https --yes
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get -y install helm
+kubeadm config images pull
 
-sudo kubeadm config images pull
-
-echo "Preflight Check Passed: Downloaded All Required Images"
-
-sudo kubeadm init --apiserver-advertise-address=$CONTROL_PLANE_IP --apiserver-cert-extra-sans=$CONTROL_PLANE_IP --pod-network-cidr=$POD_CIDR --node-name "$NODENAME" --ignore-preflight-errors Swap
-
-echo "* Copy configuration for $HOME ..."
-mkdir -p "$HOME"/.kube
-sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
-sudo chown "$(id -u)":"$(id -g)" "$HOME"/.kube/config
+echo "* Initialize Kubernetes cluster ..."
+if [ $KUBERNETES_VERSION != 'latest' ]; then
+    kubeadm init --kubernetes-version=$KUBERNETES_VERSION --apiserver-advertise-address=$CONTROL_PLANE_IP --apiserver-cert-extra-sans=$CONTROL_PLANE_IP --pod-network-cidr=$POD_CIDR --node-name "$NODENAME"
+else
+    kubeadm init --apiserver-advertise-address=$CONTROL_PLANE_IP --apiserver-cert-extra-sans=$CONTROL_PLANE_IP --pod-network-cidr=$POD_CIDR --node-name "$NODENAME"
+fi
 
 # Save Configs to shared /Vagrant location
 
 # For Vagrant re-runs, check if there is existing configs in the location and delete it for saving new configuration.
 
-config_path="$SHARED_DIR/configs"
-
-if [ -d $config_path ]; then
-    rm -f $config_path/*
+if [ -d $CONFIGS_PATH ]; then
+    rm -f $CONFIGS_PATH/*
 else
-    mkdir -p $config_path
+    mkdir -p $CONFIGS_PATH
 fi
 
-cp -i /etc/kubernetes/admin.conf $config_path/config
-touch $config_path/join.sh
-chmod +x $config_path/join.sh
+echo "* Externalize admin.conf ..."
+cp -i /etc/kubernetes/admin.conf $CONFIGS_PATH/config
+touch $CONFIGS_PATH/join.sh
+chmod +x $CONFIGS_PATH/join.sh
 
-sudo -i -u vagrant bash <<EOF
-whoami
+echo "* Copy configuration for root ..."
+mkdir -p /root/.kube
+cp -i /etc/kubernetes/admin.conf /root/.kube/config
+chown -R root:root /root/.kube
+
+echo "* Copy configuration for vagrant ..."
 mkdir -p /home/vagrant/.kube
-sudo cp -i $config_path/config /home/vagrant/.kube/
-sudo chown vagrant:vagrant /home/vagrant/.kube/config
-EOF
+cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+chown -R vagrant:vagrant /home/vagrant/.kube
 
-kubeadm token create --print-join-command >$config_path/join.sh
+kubeadm token create --print-join-command >$CONFIGS_PATH/join.sh
 
-# Install Calico Network Plugin
+# Install Network Plugin
 
-echo "* Install Pod Network plugin (Calico) ..."
-kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
-wget -q https://docs.projectcalico.org/manifests/custom-resources.yaml -O /tmp/custom-resources.yaml
-# sed -i "s@192.168.0.0@${POD_CIDR}@g" /tmp/custom-resources.yaml #TODO replace existing pod network
-kubectl create -f /tmp/custom-resources.yaml
+echo "* Install Pod Network plugin (Antrea) ..."
+TAG=${ANTREA_VERSION:-v1.7.0}
+kubectl apply -f https://github.com/antrea-io/antrea/releases/download/$TAG/antrea.yml
+
+# echo "* Install Pod Network plugin (Flannel) ..."
+# wget -q https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml -O /tmp/kube-flannel.yaml
+# sed -i '/--kube-subnet-mgr/ a CHANGEME' /tmp/kube-flannel.yaml
+# sed -i "s/CHANGEME/        - --iface=${CONTROL_PLANE_IP}/" /tmp/kube-flannel.yaml
+# kubectl apply -f /tmp/kube-flannel.yaml
+
+# echo "* Install Pod Network plugin (Calico) ..."
+# kubectl create -f https://projectcalico.docs.tigera.io/manifests/tigera-operator.yaml
+# wget -q https://projectcalico.docs.tigera.io/manifests/custom-resources.yaml -O /tmp/custom-resources.yaml
+# sed -i "s@192.168.0.0/16@${POD_CIDR}@g" /tmp/custom-resources.yaml
+# kubectl create -f /tmp/custom-resources.yaml
 
 # Install Metrics Server
 
@@ -95,6 +100,6 @@ kubectl create -f /tmp/custom-resources.yaml
 #   namespace: kubernetes-dashboard
 # EOF
 
-# kubectl -n kubernetes-dashboard get secret "$(kubectl -n kubernetes-dashboard get sa/admin-user -o jsonpath="{.secrets[0].name}")" -o go-template="{{.data.token | base64decode}}" >> $config_path/token
+# kubectl -n kubernetes-dashboard get secret "$(kubectl -n kubernetes-dashboard get sa/admin-user -o jsonpath="{.secrets[0].name}")" -o go-template="{{.data.token | base64decode}}" >> $CONFIGS_PATH/token
 
 touch $FIRST_RUN_CONTROL_PLANE
