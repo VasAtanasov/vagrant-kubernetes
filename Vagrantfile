@@ -3,7 +3,7 @@
 
 KUBERNETES_VERSION = "1.23.8-00"
 
-VAGRANT_BOX = "debian/bullseye64"
+VAGRANT_BOX = "vasatanasov/debian-11.3-k8s-docker"
 CPUS_CONTROL_PANE_NODE = 2
 CPUS_WORKER_NODE = 2
 MEMORY_CONTROL_PANE_NODE = 6000
@@ -52,22 +52,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                       path: "#{SCRIPTS}/common.sh"
 
   config.vm.provision "shell",
-                      name: "Setting sshd configuration",
-                      path: "#{SCRIPTS}/sshd.sh"
-
-  config.vm.provision "shell",
-    name: "Bootstrapping container runtime",
-    path: "#{SCRIPTS}/docker.sh"
-
-  config.vm.provision "shell",
     name: "Ensure user \"vagrant\" is added to docker group",
     env: { "CURRENT_USER" => "vagrant" },
     path: "#{SCRIPTS}/docker-group.sh"
 
-  config.vm.provision "shell",
-    name: "Bootstrapping kubernetes",
-    env: { "KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "CONTROL_PLANE_IP" => "#{CONTROL_PLANE_IP}", "CONFIGS_PATH" => "#{CONFIGS_PATH}" },
-    path: "#{SCRIPTS}/kubernetes.sh"
+  config.vm.provision "shell", inline: "echo #{KUBERNETES_VERSION} > /tmp/k8s-version"
 
   (1..TOTAL_NODES_COUNT).each do |i|
     config.vm.provision "shell",
