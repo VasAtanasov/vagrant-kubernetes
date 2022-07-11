@@ -3,7 +3,11 @@
 
 KUBERNETES_VERSION = "1.23.8-00"
 
-VAGRANT_BOX = "debian/bullseye64"
+# VAGRANT_BOX = "debian/bullseye64"
+# VAGRANT_BOX = "shekeriev/debian-10"
+# VAGRANT_BOX = "geerlingguy/debian11"
+# VAGRANT_BOX = "../../../packer-boxes/debian11/builds/virtualbox-debian11.box"
+VAGRANT_BOX = "../../../../projects/bento/builds/debian-11.3.virtualbox.box"
 CPUS_CONTROL_PANE_NODE = 2
 CPUS_WORKER_NODE = 2
 MEMORY_CONTROL_PANE_NODE = 6000
@@ -57,8 +61,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.provision "shell",
     name: "Bootstrapping container runtime",
-    env: { "CURRENT_USER" => "vagrant" },
     path: "#{SCRIPTS}/docker.sh"
+
+  config.vm.provision "shell",
+    name: "Adding user \"vagrant\" to docker group",
+    env: { "CURRENT_USER" => "vagrant" },
+    path: "#{SCRIPTS}/docker-group.sh"
 
   config.vm.provision "shell",
     name: "Bootstrapping kubernetes",

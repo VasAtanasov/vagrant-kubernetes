@@ -1,13 +1,4 @@
-#!/bin/bash
-
-set -euxo pipefail
-
-FIRST_RUN_MARKER=$HOME/first-run-bootstrap.txt
-
-if [[ -f "$FIRST_RUN_MARKER" ]]; then
-    echo "Kubernetes already bootstrapped"
-    exit 0
-fi
+#!/bin/sh -eux
 
 echo 'Common setup for all servers (Control Plane and Nodes)'
 
@@ -68,12 +59,3 @@ fi
 
 echo '* Exclude the Kubernetes packages from being updated ...'
 apt-mark hold kubelet kubeadm kubectl
-
-# local_ip="$(ip --json a s | jq -r '.[] | if .ifname == "eth1" then .addr_info[] | if .family == "inet" then .local else empty end else empty end')"
-# cat >/etc/default/kubelet <<EOF
-# KUBELET_EXTRA_ARGS=--node-ip=$local_ip
-# EOF
-
-# systemctl restart kubelet
-
-touch "$FIRST_RUN_MARKER"

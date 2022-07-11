@@ -1,6 +1,4 @@
-#!/bin/bash
-
-set -euxo pipefail
+#!/bin/sh -eux
 
 disable_sudo_password() {
     local username="${1}"

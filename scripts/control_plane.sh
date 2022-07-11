@@ -1,12 +1,4 @@
-#!/bin/bash
-
-set -euxo pipefail
-
-FIRST_RUN_CONTROL_PLANE=$HOME/first-run-control-plane.txt
-if [[ -f "$FIRST_RUN_CONTROL_PLANE" ]]; then
-    echo "Control Plane already bootstraped"
-    exit 0
-fi
+#!/bin/sh -eux
 
 echo 'Setup for Control Plane (Master) servers'
 
@@ -101,5 +93,3 @@ kubectl apply -f https://github.com/antrea-io/antrea/releases/download/$TAG/antr
 # EOF
 
 # kubectl -n kubernetes-dashboard get secret "$(kubectl -n kubernetes-dashboard get sa/admin-user -o jsonpath="{.secrets[0].name}")" -o go-template="{{.data.token | base64decode}}" >> $CONFIGS_PATH/token
-
-touch $FIRST_RUN_CONTROL_PLANE

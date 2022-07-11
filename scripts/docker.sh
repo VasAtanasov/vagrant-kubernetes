@@ -1,14 +1,4 @@
-#!/bin/bash
-
-set -euxo pipefail
-
-FIRST_RUN_MARKER=$HOME/first-run-docker.txt
-
-if [[ -f "$FIRST_RUN_MARKER" ]]; then
-    echo "Docker already bootstrapped"
-    exit 0
-fi
-
+#!/bin/sh -eux
 
 command_exists() {
     command -v "$@" >/dev/null 2>&1
@@ -49,21 +39,3 @@ echo "Installing Docker Engine"
 
 update_packages
 DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io >/dev/null
-
-CURRENT_USER=${CURRENT_USER:-$USER}
-
-if grep -q "docker" /etc/group; then
-    echo "Docker group alredy exists, skipping creation"
-else
-    sudo groupadd docker
-fi
-
-EXISTS=$(grep -c "^${CURRENT_USER}:" /etc/passwd)
-if [ $EXISTS -eq 0 ]; then
-    echo "The user ${CURRENT_USER} does not exist"
-else
-    echo "The user ${CURRENT_USER} exists"
-    sudo gpasswd -a ${CURRENT_USER} docker
-fi
-
-touch $FIRST_RUN_MARKER
