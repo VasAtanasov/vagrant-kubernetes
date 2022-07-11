@@ -3,11 +3,11 @@
 
 KUBERNETES_VERSION = "1.23.8-00"
 
-VAGRANT_BOX = "debian/bullseye64"
+VAGRANT_BOX = "vasatanasov/debian-11.3-k8s-docker"
 CPUS_CONTROL_PANE_NODE = 2
 CPUS_WORKER_NODE = 2
-MEMORY_CONTROL_PANE_NODE = 6000
-MEMORY_WORKER_NODE = 6000
+MEMORY_CONTROL_PANE_NODE = 2048
+MEMORY_WORKER_NODE = 2048
 WORKER_NODES_COUNT = 2
 CONTROL_PLANE_COUNT = 1
 TOTAL_NODES_COUNT = CONTROL_PLANE_COUNT + WORKER_NODES_COUNT
@@ -52,28 +52,54 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                       path: "#{SCRIPTS}/common.sh"
 
   config.vm.provision "shell",
-                      name: "Setting sshd configuration",
-                      path: "#{SCRIPTS}/sshd.sh"
-
-  config.vm.provision "shell",
-    name: "Bootstrapping container runtime",
-    path: "#{SCRIPTS}/docker.sh"
-
-  config.vm.provision "shell",
     name: "Ensure user \"vagrant\" is added to docker group",
     env: { "CURRENT_USER" => "vagrant" },
     path: "#{SCRIPTS}/docker-group.sh"
 
-  config.vm.provision "shell",
-    name: "Bootstrapping kubernetes",
-    env: { "KUBERNETES_VERSION" => "#{KUBERNETES_VERSION}", "CONTROL_PLANE_IP" => "#{CONTROL_PLANE_IP}", "CONFIGS_PATH" => "#{CONFIGS_PATH}" },
-    path: "#{SCRIPTS}/kubernetes.sh"
+  config.vm.provision "shell", inline: "echo #{KUBERNETES_VERSION} > /tmp/k8s-version"
 
   (1..TOTAL_NODES_COUNT).each do |i|
     config.vm.provision "shell",
       name: "===> Appendig node-#{i}.k8s to /etc/hosts",
       env: { "IP" => "#{IP_NW}#{IP_START + i}", "HOSTNAME" => "node-#{i}.k8s", "HOST_ALIAS" => "node-#{i}" },
       path: "#{SCRIPTS}/setup-hosts.sh"
+  end
+
+  NFS_SERVER_IP = "#{IP_NW}#{12}"
+
+  config.vm.provision "shell",
+                      name: "===> Ensure nfs-common is installed",
+                      inline: <<~SCRIPT
+                        apt-get update && apt-get install -y nfs-common
+                      SCRIPT
+
+  config.vm.provision "shell",
+                      name: "===> Appendig nfs-server to /etc/hosts",
+                      inline: <<~SCRIPT
+                        echo '#{NFS_SERVER_IP} nfs-server'
+                      SCRIPT
+
+  config.vm.define "nfs-server" do |nfs|
+    nfs.vm.hostname = "nfs-server"
+    nfs.vm.network "private_network", ip: "#{NFS_SERVER_IP}"
+
+    nfs.vm.provider :virtualbox do |vb, override|
+      vb.name = "nfs-server"
+      vb.memory = MEMORY_WORKER_NODE
+      vb.cpus = CPUS_WORKER_NODE
+    end
+
+    nfs.vm.provision "shell",
+                      name: "===> Ensure nfs-server is instaled and configured",
+                      inline: <<~SCRIPT
+                        apt-get update && apt-get install -y nfs-kernel-server
+                        mkdir -p /data
+                        chown nobody:nogroup /data
+                        chmod -R 777 /data
+                        echo '/data *(rw,sync,no_subtree_check)' >> /etc/exports
+                        export -a
+                        systemctl restart nfs-server
+                      SCRIPT
   end
 
   # Kubernetes Control Plane Server
