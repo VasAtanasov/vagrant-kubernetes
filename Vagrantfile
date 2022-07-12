@@ -76,7 +76,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.provision "shell",
                       name: "===> Appendig nfs-server to /etc/hosts",
                       inline: <<~SCRIPT
-                        echo '#{NFS_SERVER_IP} nfs-server'
+                        echo '#{NFS_SERVER_IP} nfs-server' >> /etc/hosts
                       SCRIPT
 
   config.vm.define "nfs-server" do |nfs|
