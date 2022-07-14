@@ -4,6 +4,7 @@
 KUBERNETES_VERSION = "1.23.8-00"
 
 VAGRANT_BOX = "vasatanasov/debian-11.3-k8s-docker"
+VAGRANT_BOX_VERSION = "202207.14.0"
 CPUS_CONTROL_PANE_NODE = 2
 CPUS_WORKER_NODE = 2
 MEMORY_CONTROL_PANE_NODE = 6000
@@ -27,6 +28,7 @@ SCRIPTS_PATH = "/tmp" # The location where vagrant will upload the scripts on th
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.synced_folder ".", "/vagrant", type: "nfs", disabled: true
   config.vm.box = VAGRANT_BOX
+  config.vm.box_version = VAGRANT_BOX_VERSION
   config.vm.box_check_update = false
   config.vm.post_up_message = "" # official debian images have post_up_message, this removes it
   config.ssh.insert_key = false
